@@ -28,7 +28,7 @@ Tools / Software:
 2. Insert the microSD card and open the Imager.
 3. Choose **Raspberry Pi OS (32-bit)** (Desktop makes kiosk setup easier).
 4. Click the gear icon (advanced options) and:
-   - Set hostname (e.g., `smartlocker`).
+   - Set hostname (e.g., `smartlocker`). 
    - Enable SSH and configure Wi-Fi (optional but convenient).
    - Set username/password (default is `pi`/`raspberry` if unchanged).
 5. Flash the image and safely eject the card.
@@ -39,7 +39,7 @@ Tools / Software:
 2. Complete the Raspberry Pi OS first-boot wizard if using Desktop.
 3. Update firmware and packages:
    ```bash
-   sudo apt update
+
    sudo apt full-upgrade -y
    sudo reboot
    ```
@@ -55,8 +55,9 @@ Tools / Software:
 ## 3. Install System Dependencies
 
 ```bash
+sudo apt update
 sudo apt install -y python3 python3-pip python3-flask python3-smbus \
-    i2c-tools git chromium-browser unclutter xdotool
+    i2c-tools git chromium unclutter xdotool
 ```
 
 Verify I2C bus detects both MCP23017 chips (addresses 0x20 & 0x21):
@@ -72,7 +73,7 @@ sudo i2cdetect -y 1
 2. Get the project onto the Pi, for example:
    ```bash
    cd /home/pi
-   git clone <YOUR_REPOSITORY_URL> smartlocker
+   git clone <https://github.com/Yoruzaki/smartlocker.git> smartlocker
    ```
    If you only have a ZIP, copy it via SCP or USB and extract it to `/home/pi/smartlocker`.
 3. Ensure ownership is `pi:pi`:
@@ -162,12 +163,55 @@ Steps:
    cp /home/pi/smartlocker/start_kiosk.sh /home/pi/
    chmod +x /home/pi/start_kiosk.sh
    ```
-2. Autostart it for the `pi` desktop session (LXDE):
+
+2. **Test the script manually first** (to verify it works):
+   ```bash
+   /home/pi/start_kiosk.sh
+   ```
+   Press `Alt+F4` or `Ctrl+Alt+T` to exit if it works. If it doesn't, check that the Flask service is running: `sudo systemctl status smartlocker.service`
+
+3. **Set up autostart** - Try these methods in order:
+
+   **Method A: Modern Raspberry Pi OS (Recommended)**
+   ```bash
+   mkdir -p ~/.config/autostart
+   cat > ~/.config/autostart/kiosk.desktop << 'EOF'
+   [Desktop Entry]
+   Type=Application
+   Name=Smart Locker Kiosk
+   Exec=/home/pi/start_kiosk.sh
+   Hidden=false
+   NoDisplay=false
+   X-GNOME-Autostart-enabled=true
+   EOF
+   ```
+
+   **Method B: Legacy LXDE (if Method A doesn't work)**
    ```bash
    sudo mkdir -p /etc/xdg/lxsession/LXDE-pi
    echo "@/home/pi/start_kiosk.sh" | sudo tee -a /etc/xdg/lxsession/LXDE-pi/autostart
    ```
-3. On next login, Chromium opens fullscreen at `http://localhost:5000`.
+
+   **Method C: System-wide autostart (alternative)**
+   ```bash
+   sudo mkdir -p /etc/xdg/autostart
+   sudo cp ~/.config/autostart/kiosk.desktop /etc/xdg/autostart/ 2>/dev/null || \
+   sudo bash -c 'cat > /etc/xdg/autostart/kiosk.desktop << EOF
+   [Desktop Entry]
+   Type=Application
+   Name=Smart Locker Kiosk
+   Exec=/home/pi/start_kiosk.sh
+   Hidden=false
+   NoDisplay=false
+   X-GNOME-Autostart-enabled=true
+   EOF'
+   ```
+
+4. Reboot to test:
+   ```bash
+   sudo reboot
+   ```
+   After reboot, Chromium should open fullscreen at `http://localhost:5000`.
 
 ## 9. Test the System
 

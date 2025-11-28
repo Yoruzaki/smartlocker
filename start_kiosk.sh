@@ -9,4 +9,4 @@ xset -dpms
 unclutter -idle 0 &
 
 # Start Chromium in Kiosk Mode
-chromium-browser --noerrdialogs --disable-infobars --kiosk http://localhost:5000 --check-for-update-interval=31536000
+chromium --noerrdialogs --disable-infobars --kiosk http://localhost:5000 --check-for-update-interval=31536000

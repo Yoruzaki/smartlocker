@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="status-container">
+    <div class="status-icon">✅</div>
+    <div class="status-message">
+        {% if message_key %}
+        {{ t[lang][message_key] }}
+        {% if locker_id %} #{{ locker_id }}{% endif %}
+        {% else %}
+        {{ message }}
+        {% endif %}
+    </div>
+    {% if sub_message_key %}
+    <div class="status-sub">{{ t[lang][sub_message_key] }}</div>
+    {% elif sub_message %}
+    <div class="status-sub">{{ sub_message }}</div>
+    {% endif %}
+
+    <a href="{{ url_for('index') }}" class="btn btn-primary big-btn" style="height: 80px; font-size: 1.5rem;">{{
+        t[lang]['done'] }}</a>
+</div>
+
+<script>
+    // Auto redirect after 10 seconds
+    setTimeout(function () {
+        window.location.href = "{{ url_for('index') }}";
+    }, 10000);
+</script>
+{% endblock %}

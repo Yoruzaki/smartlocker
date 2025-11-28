@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h2>{{ t[lang]['select_locker'] }}</h2>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">{{ t[lang]['logout'] }}</a>
+</div>
+
+<div id="lockerGrid" class="locker-grid" data-strings='{{ {
+    "alreadyOccupied": t[lang]["already_occupied"],
+    "confirmOpen": t[lang]["confirm_open"],
+    "error": t[lang]["error"],
+    "requestFailed": t[lang]["request_failed"]
+} | tojson }}'>
+    {% for locker in lockers %}
+    {% set is_occupied = locker['is_occupied'] %}
+    {% set locker_id = locker['id'] %}
+    <!-- Check if door is open from hw_states passed from route -->
+    {% set is_open = not hw_states.get(locker_id, True) if hw_states else False %}
+
+    <button type="button"
+        class="btn locker-btn {{ 'occupied' if is_occupied else '' }} {{ 'open' if is_open else '' }}"
+        data-locker-id="{{ locker_id }}"
+        data-is-occupied="{{ 'true' if is_occupied else 'false' }}">
+        <span class="locker-id">{{ locker_id }}</span>
+        <span class="locker-status">
+            {% if is_open %}
+            {{ t[lang]['door_open'] }}
+            {% elif is_occupied %}
+            {{ t[lang]['occupied'] }}
+            {% else %}
+            {{ t[lang]['available'] }}
+            {% endif %}
+        </span>
+    </button>
+    {% endfor %}
+</div>
+
+<!-- Modal for OTP Display -->
+<div id="otpModal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; flex-direction:column; justify-content:center; align-items:center;">
+    <h2 style="color:white; margin-bottom:20px;">{{ t[lang]['locker_opened'] }}</h2>
+    <div style="background:white; color:black; padding:20px; border-radius:10px; text-align:center;">
+        <p>{{ t[lang]['generated_otp'] }}</p>
+        <h1 id="otpDisplay" style="font-size:4rem; margin:10px 0;"></h1>
+        <p>{{ t[lang]['place_package'] }}</p>
+    </div>
+    <button class="btn btn-primary" style="margin-top:30px;" onclick="closeModal()">{{ t[lang]['done'] }}</button>
+</div>
+
+<script>
+    const lockerGridEl = document.getElementById('lockerGrid');
+    const STRINGS = lockerGridEl
+        ? JSON.parse(lockerGridEl.dataset.strings)
+        : {
+            alreadyOccupied: 'Locker already occupied',
+            confirmOpen: 'Open locker',
+            error: 'Error',
+            requestFailed: 'Request failed'
+        };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.locker-btn').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const id = Number(button.dataset.lockerId);
+                const isOccupied = button.dataset.isOccupied === 'true';
+                openLocker(id, isOccupied);
+            });
+        });
+    });
+
+    function openLocker(id, isOccupied) {
+        if (isOccupied) {
+            alert(STRINGS.alreadyOccupied);
+            return;
+        }
+
+        if (!confirm(STRINGS.confirmOpen + " " + id + "?")) return;
+
+        fetch('/api/open_locker/' + id, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('otpDisplay').innerText = data.otp;
+                    document.getElementById('otpModal').style.display = 'flex';
+                } else {
+                    alert(STRINGS.error + ": " + data.error);
+                }
+            })
+            .catch(err => alert(STRINGS.requestFailed));
+    }
+
+    function closeModal() {
+        document.getElementById('otpModal').style.display = 'none';
+        location.reload(); // Refresh to update status
+    }
+</script>
+{% endblock %}

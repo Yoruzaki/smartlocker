@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="keypad-container">
+    <h2>{{ t[lang]['login_title'] }}</h2>
+    <form method="POST" id="loginForm">
+        <div class="display-area">
+            <input type="password" name="pin" id="pinInput" readonly placeholder="{{ t[lang]['enter_pin'] }}">
+        </div>
+        <div class="keypad">
+            <button type="button" class="btn key-btn" onclick="appendKey('1')">1</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('2')">2</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('3')">3</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('4')">4</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('5')">5</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('6')">6</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('7')">7</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('8')">8</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('9')">9</button>
+            <button type="button" class="btn key-btn clear" onclick="clearKey()">C</button>
+            <button type="button" class="btn key-btn" onclick="appendKey('0')">0</button>
+            <button type="submit" class="btn key-btn action">➜</button>
+        </div>
+    </form>
+    <br>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">{{ t[lang]['back'] }}</a>
+</div>
+
+<script>
+    function appendKey(val) {
+        const input = document.getElementById('pinInput');
+        if (input.value.length < 6) {
+            input.value += val;
+        }
+    }
+    function clearKey() {
+        document.getElementById('pinInput').value = '';
+    }
+</script>
+{% endblock %}

@@ -3,11 +3,11 @@
 {% block content %}
 <div class="home-menu">
     <a href="{{ url_for('delivery_login') }}" class="btn btn-primary big-btn">
-        <span>📦</span>
+        <span class="home-icon">🚚</span>
         <span>{{ t[lang]['delivery'] }}</span>
     </a>
     <a href="{{ url_for('customer_pickup') }}" class="btn btn-success big-btn">
-        <span>📤</span>
+        <span class="home-icon">👤</span>
         <span>{{ t[lang]['pickup'] }}</span>
     </a>
 </div>

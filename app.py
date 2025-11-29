@@ -12,8 +12,8 @@ app.secret_key = 'supersecretkey' # Change for production
 TRANSLATIONS = {
     'fr': {
         'title': 'Système de Casier Intelligent',
-        'delivery': 'Livraison',
-        'pickup': 'Retrait',
+        'delivery': 'Livreur',
+        'pickup': 'Client',
         'login_title': 'Connexion Livreur',
         'enter_pin': 'Entrez le PIN',
         'back': 'Retour',
@@ -39,8 +39,8 @@ TRANSLATIONS = {
     },
     'ar': {
         'title': 'نظام الخزائن الذكية',
-        'delivery': 'توصيل',
-        'pickup': 'استلام',
+        'delivery': 'مندوب',
+        'pickup': 'عميل',
         'login_title': 'تسجيل دخول المندوب',
         'enter_pin': 'أدخل الرمز السري',
         'back': 'رجوع',

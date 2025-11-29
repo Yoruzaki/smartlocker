@@ -173,6 +173,20 @@ body[dir="rtl"] .lang-switch {
     flex-direction: column;
     gap: 20px;
     border-radius: 30px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.big-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.home-icon {
+    font-size: 5rem;
+    display: block;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
 /* Keypad */
@@ -371,6 +385,20 @@ body[dir="rtl"] .lang-switch {
     flex-direction: column;
     gap: 20px;
     border-radius: 30px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.big-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.home-icon {
+    font-size: 5rem;
+    display: block;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
 /* Keypad */

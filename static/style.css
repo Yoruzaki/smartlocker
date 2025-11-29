@@ -87,6 +87,8 @@ body[dir="rtl"] {
     right: 20px;
     /* LTR default */
     z-index: 100;
+    display: flex;
+    gap: 10px;
 }
 
 body[dir="rtl"] .lang-switch {
@@ -228,6 +230,9 @@ body[dir="rtl"] .lang-switch {
     align-items: center;
     margin-bottom: 20px;
     padding: 0 20px;
+    position: relative;
+    z-index: 200;
+    margin-top: 60px;
 }
 
 .locker-grid {
@@ -423,6 +428,9 @@ body[dir="rtl"] .lang-switch {
     align-items: center;
     margin-bottom: 20px;
     padding: 0 20px;
+    position: relative;
+    z-index: 200;
+    margin-top: 60px;
 }
 
 .locker-grid {

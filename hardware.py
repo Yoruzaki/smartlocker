@@ -203,34 +203,58 @@ class HybridHardware(HardwareInterface):
                 self.GPPUA = 0x0C  # Pull-up register A
                 self.GPPUB = 0x0D  # Pull-up register B
                 
+                # Wait a bit for I2C bus to stabilize
+                time.sleep(0.1)
+                
                 # Quick test: Try to read from MCP23017 to verify it's connected
-                # Use a short timeout by trying a simple read
-                try:
-                    test_read = self.mcp_bus.read_byte_data(self.mcp_addr, self.IODIRA)
-                except (OSError, IOError) as e:
-                    print(f"[HybridHardware] MCP23017 not detected at address 0x{self.mcp_addr:x}: {e}")
-                    print("[HybridHardware] Continuing with Pi GPIO only. MCP lockers will not work.")
-                    self.mcp_bus = None
-                    self.mcp_addr = None
-                else:
-                    # Configure Port A as outputs (for relays)
-                    self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRA, 0x00)
-                    self.mcp_bus.write_byte_data(self.mcp_addr, self.GPIOA, 0x00)
-                    
-                    # Configure Port B as inputs (for sensors) with pull-ups
-                    self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRB, 0xFF)
-                    self.mcp_bus.write_byte_data(self.mcp_addr, self.GPPUB, 0xFF)
-                    
-                    # Map MCP lockers to pin indices
-                    mcp_pin_index = 0
-                    for locker_id, config in sorted(self.locker_config.items()):
-                        if config['type'] == 'mcp':
-                            self.mcp_pins[locker_id] = mcp_pin_index
-                            mcp_pin_index += 1
-                            if mcp_pin_index >= 10:  # Only 10 MCP pins available
-                                break
-                    
-                    print(f"[HybridHardware] Initialized: {len(self.pi_gpios)} Pi GPIOs, {len(self.mcp_pins)} MCP pins")
+                # Retry a few times in case of timing issues
+                mcp_working = False
+                for attempt in range(3):
+                    try:
+                        # Try reading IODIRA register (should return 0xFF by default for inputs)
+                        test_read = self.mcp_bus.read_byte_data(self.mcp_addr, self.IODIRA)
+                        mcp_working = True
+                        print(f"[HybridHardware] MCP23017 detected at address 0x{self.mcp_addr:x} (IODIRA=0x{test_read:02x})")
+                        break
+                    except (OSError, IOError) as e:
+                        if attempt < 2:
+                            time.sleep(0.2)  # Wait before retry
+                            continue
+                        else:
+                            print(f"[HybridHardware] MCP23017 not responding at address 0x{self.mcp_addr:x}: {e}")
+                            print("[HybridHardware] Continuing with Pi GPIO only. MCP lockers will not work.")
+                            print("[HybridHardware] Tip: Check power, wiring, and I2C pull-up resistors.")
+                            self.mcp_bus = None
+                            self.mcp_addr = None
+                
+                if mcp_working:
+                    try:
+                        # Configure Port A as outputs (for relays)
+                        self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRA, 0x00)
+                        time.sleep(0.01)  # Small delay between writes
+                        self.mcp_bus.write_byte_data(self.mcp_addr, self.GPIOA, 0x00)
+                        time.sleep(0.01)
+                        
+                        # Configure Port B as inputs (for sensors) with pull-ups
+                        self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRB, 0xFF)
+                        time.sleep(0.01)
+                        self.mcp_bus.write_byte_data(self.mcp_addr, self.GPPUB, 0xFF)
+                        
+                        # Map MCP lockers to pin indices
+                        mcp_pin_index = 0
+                        for locker_id, config in sorted(self.locker_config.items()):
+                            if config['type'] == 'mcp':
+                                self.mcp_pins[locker_id] = mcp_pin_index
+                                mcp_pin_index += 1
+                                if mcp_pin_index >= 10:  # Only 10 MCP pins available
+                                    break
+                        
+                        print(f"[HybridHardware] Initialized: {len(self.pi_gpios)} Pi GPIOs, {len(self.mcp_pins)} MCP pins")
+                    except Exception as e:
+                        print(f"[HybridHardware] MCP23017 configuration failed: {e}")
+                        print("[HybridHardware] Continuing with Pi GPIO only.")
+                        self.mcp_bus = None
+                        self.mcp_addr = None
             except Exception as e:
                 print(f"[HybridHardware] MCP23017 init failed: {e}")
                 print("[HybridHardware] Continuing with Pi GPIO only. MCP lockers will not work.")

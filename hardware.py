@@ -203,27 +203,39 @@ class HybridHardware(HardwareInterface):
                 self.GPPUA = 0x0C  # Pull-up register A
                 self.GPPUB = 0x0D  # Pull-up register B
                 
-                # Configure Port A as outputs (for relays)
-                self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRA, 0x00)
-                self.mcp_bus.write_byte_data(self.mcp_addr, self.GPIOA, 0x00)
-                
-                # Configure Port B as inputs (for sensors) with pull-ups
-                self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRB, 0xFF)
-                self.mcp_bus.write_byte_data(self.mcp_addr, self.GPPUB, 0xFF)
-                
-                # Map MCP lockers to pin indices
-                mcp_pin_index = 0
-                for locker_id, config in sorted(self.locker_config.items()):
-                    if config['type'] == 'mcp':
-                        self.mcp_pins[locker_id] = mcp_pin_index
-                        mcp_pin_index += 1
-                        if mcp_pin_index >= 10:  # Only 10 MCP pins available
-                            break
-                
-                print(f"[HybridHardware] Initialized: {len(self.pi_gpios)} Pi GPIOs, {len(self.mcp_pins)} MCP pins")
+                # Quick test: Try to read from MCP23017 to verify it's connected
+                # Use a short timeout by trying a simple read
+                try:
+                    test_read = self.mcp_bus.read_byte_data(self.mcp_addr, self.IODIRA)
+                except (OSError, IOError) as e:
+                    print(f"[HybridHardware] MCP23017 not detected at address 0x{self.mcp_addr:x}: {e}")
+                    print("[HybridHardware] Continuing with Pi GPIO only. MCP lockers will not work.")
+                    self.mcp_bus = None
+                    self.mcp_addr = None
+                else:
+                    # Configure Port A as outputs (for relays)
+                    self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRA, 0x00)
+                    self.mcp_bus.write_byte_data(self.mcp_addr, self.GPIOA, 0x00)
+                    
+                    # Configure Port B as inputs (for sensors) with pull-ups
+                    self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRB, 0xFF)
+                    self.mcp_bus.write_byte_data(self.mcp_addr, self.GPPUB, 0xFF)
+                    
+                    # Map MCP lockers to pin indices
+                    mcp_pin_index = 0
+                    for locker_id, config in sorted(self.locker_config.items()):
+                        if config['type'] == 'mcp':
+                            self.mcp_pins[locker_id] = mcp_pin_index
+                            mcp_pin_index += 1
+                            if mcp_pin_index >= 10:  # Only 10 MCP pins available
+                                break
+                    
+                    print(f"[HybridHardware] Initialized: {len(self.pi_gpios)} Pi GPIOs, {len(self.mcp_pins)} MCP pins")
             except Exception as e:
                 print(f"[HybridHardware] MCP23017 init failed: {e}")
+                print("[HybridHardware] Continuing with Pi GPIO only. MCP lockers will not work.")
                 self.mcp_bus = None
+                self.mcp_addr = None
         else:
             print("[HybridHardware] Warning: smbus not available, MCP23017 will not work")
     
@@ -267,20 +279,23 @@ class HybridHardware(HardwareInterface):
             else:
                 print(f"[HybridHardware] Pi GPIO not available for locker {locker_id}")
         elif config['type'] == 'mcp':
-            if self.mcp_bus and locker_id in self.mcp_pins:
-                pin_index = self.mcp_pins[locker_id]
-                port = self.GPIOA if pin_index < 8 else self.GPIOB
-                pin = pin_index if pin_index < 8 else pin_index - 8
-                
-                print(f"[HybridHardware] Opening locker {locker_id} (MCP pin {pin_index})")
-                current = self.mcp_bus.read_byte_data(self.mcp_addr, port)
-                new_val = current | (1 << pin)
-                self.mcp_bus.write_byte_data(self.mcp_addr, port, new_val)
-                time.sleep(1)
-                new_val = current & ~(1 << pin)
-                self.mcp_bus.write_byte_data(self.mcp_addr, port, new_val)
+            if self.mcp_bus and self.mcp_addr and locker_id in self.mcp_pins:
+                try:
+                    pin_index = self.mcp_pins[locker_id]
+                    port = self.GPIOA if pin_index < 8 else self.GPIOB
+                    pin = pin_index if pin_index < 8 else pin_index - 8
+                    
+                    print(f"[HybridHardware] Opening locker {locker_id} (MCP pin {pin_index})")
+                    current = self.mcp_bus.read_byte_data(self.mcp_addr, port)
+                    new_val = current | (1 << pin)
+                    self.mcp_bus.write_byte_data(self.mcp_addr, port, new_val)
+                    time.sleep(1)
+                    new_val = current & ~(1 << pin)
+                    self.mcp_bus.write_byte_data(self.mcp_addr, port, new_val)
+                except Exception as e:
+                    print(f"[HybridHardware] Error opening MCP locker {locker_id}: {e}")
             else:
-                print(f"[HybridHardware] MCP not available for locker {locker_id}")
+                print(f"[HybridHardware] MCP not available for locker {locker_id} (chip not connected)")
     
     def read_door_state(self, locker_id):
         config = self.locker_config.get(locker_id)
@@ -295,15 +310,19 @@ class HybridHardware(HardwareInterface):
                 return state == GPIO.LOW
             return True  # Default: closed
         elif config['type'] == 'mcp':
-            if self.mcp_bus and locker_id in self.mcp_pins:
-                pin_index = self.mcp_pins[locker_id]
-                port = self.GPIOB  # Sensors on Port B
-                pin = pin_index if pin_index < 8 else pin_index - 8
-                
-                val = self.mcp_bus.read_byte_data(self.mcp_addr, port)
-                is_closed = not ((val >> pin) & 1)
-                return is_closed
-            return True  # Default: closed
+            if self.mcp_bus and self.mcp_addr and locker_id in self.mcp_pins:
+                try:
+                    pin_index = self.mcp_pins[locker_id]
+                    port = self.GPIOB  # Sensors on Port B
+                    pin = pin_index if pin_index < 8 else pin_index - 8
+                    
+                    val = self.mcp_bus.read_byte_data(self.mcp_addr, port)
+                    is_closed = not ((val >> pin) & 1)
+                    return is_closed
+                except Exception as e:
+                    print(f"[HybridHardware] Error reading MCP sensor for locker {locker_id}: {e}")
+                    return True  # Default: closed
+            return True  # Default: closed (MCP not available)
     
     def get_all_lockers_states(self):
         states = {}

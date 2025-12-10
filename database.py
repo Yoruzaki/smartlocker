@@ -70,15 +70,16 @@ def init_db():
         )
     ''')
 
+    # Default pin assignments (used for initialization and migration)
+    pi_gpios = [4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 14, 15, 8]
+    pi_sensors = [7, 8, 9, 10, 11, 14, 15, 2, 3, 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23]
+    
     # Initialize 32 lockers if they don't exist, or update existing ones
     cursor.execute('SELECT count(*) FROM lockers')
     locker_count = cursor.fetchone()[0]
     
     if locker_count == 0:
         # Default: lockers 1-22 use Pi GPIO, 23-32 use MCP
-        pi_gpios = [4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 14, 15, 8]
-        pi_sensors = [7, 8, 9, 10, 11, 14, 15, 2, 3, 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23]
-        
         for i in range(1, 33):
             if i <= 22:
                 # Pi GPIO lockers

@@ -94,13 +94,17 @@ def load_locker_config():
     config = {}
     for locker in lockers:
         locker_id = locker['id']
-        hw_type = locker['hardware_type'] or 'pi'
+        hw_type = locker['hardware_type'] if locker['hardware_type'] else 'pi'
         gpio_pin = locker['gpio_pin']
-        sensor_pin = locker.get('sensor_pin')
+        # sqlite3.Row doesn't have .get(), use try/except or check if column exists
+        try:
+            sensor_pin = locker['sensor_pin']
+        except (KeyError, IndexError):
+            sensor_pin = None
         
         config[locker_id] = {
             'type': hw_type,
-            'pin': gpio_pin or 4,
+            'pin': gpio_pin if gpio_pin is not None else 4,
             'sensor_pin': sensor_pin
         }
     

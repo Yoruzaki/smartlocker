@@ -211,9 +211,13 @@ class HybridHardware(HardwareInterface):
                 mcp_working = False
                 for attempt in range(5):  # More retries
                     try:
-                        # First try a simple write (like i2cdetect does) - write to IODIRA
+                        # First try a simple write (like i2cdetect does) - write_quick is gentler
                         # This is less likely to timeout than a read
-                        self.mcp_bus.write_quick(self.mcp_addr)
+                        try:
+                            self.mcp_bus.write_quick(self.mcp_addr)
+                        except AttributeError:
+                            # write_quick not available, try writing to a register instead
+                            self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRA, 0xFF)
                         time.sleep(0.05)
                         
                         # Now try reading IODIRA register (should return 0xFF by default for inputs)

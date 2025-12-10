@@ -1,39 +1,42 @@
 # Smart Locker System - Complete Wiring Guide
 
-This guide provides detailed instructions for wiring the Smart Locker Delivery System hardware components to a Raspberry Pi 3.
+This guide provides detailed instructions for wiring the Smart Locker Delivery System hardware components to a Raspberry Pi 4 (or Pi 3).
 
 ## Table of Contents
 1. [Components Required](#components-required)
 2. [Overview](#overview)
 3. [Raspberry Pi Pinout](#raspberry-pi-pinout)
-4. [MCP23017 I2C Expander Setup](#mcp23017-i2c-expander-setup)
-5. [Relay Board Wiring (Outputs)](#relay-board-wiring-outputs)
-6. [Door Sensor Wiring (Inputs)](#door-sensor-wiring-inputs)
-7. [Power Distribution](#power-distribution)
-8. [Complete Wiring Diagram](#complete-wiring-diagram)
-9. [Testing & Verification](#testing--verification)
-10. [Troubleshooting](#troubleshooting)
+4. [Hybrid Hardware Architecture](#hybrid-hardware-architecture)
+5. [Raspberry Pi GPIO Wiring (Lockers 1-22)](#raspberry-pi-gpio-wiring-lockers-1-22)
+6. [MCP23017 I2C Expander Setup (Lockers 23-32)](#mcp23017-i2c-expander-setup-lockers-23-32)
+7. [Relay Board Wiring (Outputs)](#relay-board-wiring-outputs)
+8. [Door Sensor Wiring (Inputs)](#door-sensor-wiring-inputs)
+9. [Power Distribution](#power-distribution)
+10. [Complete Wiring Diagram](#complete-wiring-diagram)
+11. [Configuration System](#configuration-system)
+12. [Testing & Verification](#testing--verification)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Components Required
 
 ### Essential Components
-- **Raspberry Pi 3 Model B/B+** with microSD card
-- **2× MCP23017 I/O Expander ICs** (16-bit GPIO expanders)
-- **16× Relay Module** (5V, single-pole single-throw or double-throw)
-- **16× Door Sensors** (Reed switches or magnetic sensors)
-- **16× Lock Actuators** (Solenoids, electric strikes, or magnetic locks)
-- **Power Supply**: 5V, 3A+ for relays/locks (separate from Pi)
-- **Breadboard or PCB** for MCP23017 breakout boards
+- **Raspberry Pi 4** (or Pi 3) with microSD card
+- **1× MCP23017 I/O Expander IC** (16-bit GPIO expander) - for lockers 23-32
+- **32× Relay Module** (5V, single-pole single-throw or double-throw)
+- **32× Door Sensors** (Reed switches or magnetic sensors)
+- **32× Lock Actuators** (Solenoids, electric strikes, or magnetic locks)
+- **Power Supply**: 5V, 10A+ for relays/locks (separate from Pi recommended)
+- **Breadboard or PCB** for MCP23017 breakout board
 - **Jumper wires** (male-to-female, male-to-male)
 - **Dupont connectors** or soldering equipment
 
 ### Additional Components
 - **4.7kΩ resistors** (2× for I2C pull-ups, if not on relay board)
-- **10kΩ resistors** (16× for sensor pull-ups, if not using internal MCP pull-ups)
-- **Flyback diodes** (16×, if not built into relay board)
-- **Fuse holder and fuse** (2A-5A, depending on total current)
+- **10kΩ resistors** (32× for sensor pull-ups, if not using internal pull-ups)
+- **Flyback diodes** (32×, if not built into relay board)
+- **Fuse holder and fuse** (5A-10A, depending on total current)
 - **Wire strippers, crimping tools**
 - **Multimeter** for testing
 - **Heat shrink tubing** for insulation
@@ -42,22 +45,37 @@ This guide provides detailed instructions for wiring the Smart Locker Delivery S
 
 ## Overview
 
-The system uses **two MCP23017 chips** to control 16 lockers:
+The system uses a **hybrid architecture** to control 32 lockers:
 
-- **MCP23017 #1 (Address 0x20)**: Controls 16 relay outputs → Opens/closes lockers
-- **MCP23017 #2 (Address 0x21)**: Reads 16 door sensor inputs → Detects door open/closed state
+- **Raspberry Pi GPIOs (Lockers 1-22)**: Direct GPIO control for 22 lockers
+  - Uses 22 GPIO pins for relay outputs
+  - Uses 22 GPIO pins for door sensor inputs
+- **MCP23017 (Lockers 23-32)**: I2C expander for 10 additional lockers
+  - Port A (8 pins): Relay outputs
+  - Port B (2 pins): Additional relay outputs
+  - Port B can also be used for sensors (10 total pins available)
 
 ### System Architecture
 ```
-Raspberry Pi 3
+Raspberry Pi 4
+    │
+    ├── GPIO Pins (22 lockers: 1-22)
+    │   ├── GPIO 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 14, 15, 8
+    │   │   → 22 Relay Outputs → 22 Lock Actuators
+    │   └── GPIO 7, 8, 9, 10, 11, 14, 15, 2, 3, 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23
+    │       ← 22 Sensor Inputs ← 22 Door Sensors
     │
     ├── I2C Bus (SDA/SCL)
     │   │
-    │   ├── MCP23017 #1 (0x20) → 16 Relay Outputs → 16 Lock Actuators
-    │   └── MCP23017 #2 (0x21) → 16 Sensor Inputs ← 16 Door Sensors
+    │   └── MCP23017 (0x20) → 10 Relay Outputs → 10 Lock Actuators (Lockers 23-32)
+    │                    → 10 Sensor Inputs ← 10 Door Sensors
     │
     └── Power: 5V/GND shared across all components
 ```
+
+**Note**: The assignment of lockers to Pi GPIO vs MCP23017 is **configurable** through the web interface. By default:
+- Lockers 1-22 use Raspberry Pi GPIOs
+- Lockers 23-32 use MCP23017
 
 ---
 
@@ -97,14 +115,87 @@ Raspberry Pi 3
 ```
 
 **Key Pins for This Project:**
-- **Pin 3**: SDA (GPIO 2)
-- **Pin 5**: SCL (GPIO 3)
-- **Pin 2 or 4**: 5V (for MCP23017 power)
+- **Pin 3**: SDA (GPIO 2) - I2C data
+- **Pin 5**: SCL (GPIO 3) - I2C clock
+- **Pin 2 or 4**: 5V (for MCP23017 power, optional)
+- **Pin 1 or 17**: 3.3V (for pull-up resistors, recommended for MCP23017)
 - **Pin 6**: GND (reference ground)
+- **GPIO 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 14, 15, 8**: Available for lockers 1-22
 
 ---
 
-## MCP23017 I2C Expander Setup
+## Hybrid Hardware Architecture
+
+The system supports **32 lockers** using a combination of:
+1. **Raspberry Pi GPIOs** (22 lockers: 1-22)
+2. **MCP23017 I2C Expander** (10 lockers: 23-32)
+
+### Default Pin Assignment
+
+**Raspberry Pi GPIO Lockers (1-22):**
+- **Relay Outputs**: GPIO 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 14, 15, 8
+- **Sensor Inputs**: GPIO 7, 8, 9, 10, 11, 14, 15, 2, 3, 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23
+
+**MCP23017 Lockers (23-32):**
+- **Relay Outputs**: Port A (GPA0-GPA7) + Port B (GPB0-GPB1) = 10 pins
+- **Sensor Inputs**: Port B (GPB0-GPB7) = 8 pins (can be shared or use different pins)
+
+**Important**: Pin assignments are **configurable** through the web interface at `/configuration`. You can reassign any locker to use Pi GPIO or MCP23017 as needed.
+
+---
+
+## Raspberry Pi GPIO Wiring (Lockers 1-22)
+
+### GPIO Pin Selection
+
+**Available GPIO Pins** (avoid reserved pins):
+- **Reserved**: GPIO 0, 1 (I2C), GPIO 14, 15 (UART), GPIO 7 (SPI)
+- **Recommended for outputs**: GPIO 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 8
+- **Recommended for inputs**: GPIO 7, 8, 9, 10, 11, 14, 15, 2, 3, 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23
+
+### Wiring Raspberry Pi GPIO to Relays
+
+**For each locker using Pi GPIO (1-22):**
+
+| Locker ID | GPIO Pin (Output) | Physical Pin | Relay Module Input |
+|-----------|-------------------|--------------|-------------------|
+| 1         | GPIO 4            | Pin 7        | IN1               |
+| 2         | GPIO 5            | Pin 29       | IN2               |
+| 3         | GPIO 6            | Pin 31       | IN3               |
+| ...       | ...               | ...          | ...               |
+| 22        | GPIO 8            | Pin 24       | IN22              |
+
+**Wiring Steps:**
+1. Connect GPIO pin → Relay Module INx
+2. Use appropriate wire gauge (22-24 AWG for signal)
+3. Keep wires short to reduce interference
+4. Use twisted-pair if wires are longer than 30cm
+
+### Wiring Raspberry Pi GPIO to Sensors
+
+**For each locker using Pi GPIO (1-22):**
+
+| Locker ID | GPIO Pin (Input) | Physical Pin | Sensor Connection |
+|-----------|------------------|--------------|-------------------|
+| 1         | GPIO 7           | Pin 26       | Sensor 1          |
+| 2         | GPIO 8           | Pin 24       | Sensor 2          |
+| ...       | ...              | ...          | ...               |
+
+**Sensor Wiring:**
+```
+GPIO Pin → Reed Switch Terminal 1
+Reed Switch Terminal 2 → GND
+10kΩ Resistor: 3.3V → GPIO Pin (pull-up)
+```
+
+**Code Configuration:**
+- GPIO pins are configured with internal pull-up resistors (PUD_UP)
+- When door closed: Switch closes → GPIO reads LOW (0)
+- When door open: Switch open → GPIO reads HIGH (1)
+
+---
+
+## MCP23017 I2C Expander Setup (Lockers 23-32)
 
 ### MCP23017 Pinout
 ```
@@ -140,8 +231,10 @@ The MCP23017 has 3 address pins (A0, A1, A2) that determine its I2C address:
 | ... | ... | ... | ... | ... |
 
 **For This Project:**
-- **MCP23017 #1 (Relays)**: A0=GND, A1=GND, A2=GND → **Address 0x20**
-- **MCP23017 #2 (Sensors)**: A0=VCC, A1=GND, A2=GND → **Address 0x21**
+- **MCP23017 (Lockers 23-32)**: A0=GND, A1=GND, A2=GND → **Address 0x20**
+  - Port A (GPA0-GPA7): 8 relay outputs
+  - Port B (GPB0-GPB1): 2 additional relay outputs
+  - Port B (GPB0-GPB7): 8 sensor inputs (can share with relay outputs or use separately)
 
 ### Wiring MCP23017 to Raspberry Pi
 
@@ -161,69 +254,90 @@ The MCP23017 has 3 address pins (A0, A1, A2) that determine its I2C address:
 - Add **4.7kΩ resistors** from SCL to 3.3V
 - *Note: Many relay boards include these pull-ups. Check your board first.*
 
-**Complete MCP23017 #1 (Relays - 0x20) Wiring:**
+**Complete MCP23017 (0x20) Wiring:**
 ```
-MCP23017 #1:
-  VDD → Pi Pin 2 (5V)
-  VSS → Pi Pin 6 (GND)
-  SDA → Pi Pin 3 (GPIO 2)
-  SCL → Pi Pin 5 (GPIO 3)
-  RESET → Pi Pin 1 (3.3V)
-  A0 → GND (via jumper or wire)
-  A1 → GND
-  A2 → GND
+MCP23017:
+  VDD (Pin 28) → Pi Pin 1 or 17 (3.3V) [Recommended] OR Pin 2/4 (5V)
+  VSS (Pin 27) → Pi Pin 6 (GND)
+  SDA (Pin 3) → Pi Pin 3 (GPIO 2)
+  SCL (Pin 4) → Pi Pin 5 (GPIO 3)
+  RESET (Pin 18) → Pi Pin 1 or 17 (3.3V) [Keep HIGH]
+  A0 (Pin 25) → GND (via jumper or wire)
+  A1 (Pin 24) → GND
+  A2 (Pin 23) → GND
 ```
 
-**Complete MCP23017 #2 (Sensors - 0x21) Wiring:**
-```
-MCP23017 #2:
-  VDD → Pi Pin 2 (5V) [shared with Chip #1]
-  VSS → Pi Pin 6 (GND) [shared with Chip #1]
-  SDA → Pi Pin 3 (GPIO 2) [shared with Chip #1]
-  SCL → Pi Pin 5 (GPIO 3) [shared with Chip #1]
-  RESET → Pi Pin 1 (3.3V) [shared with Chip #1]
-  A0 → 5V (via jumper or wire) ← DIFFERENT!
-  A1 → GND
-  A2 → GND
-```
+**Power Options:**
+- **3.3V (Recommended)**: VDD → Pi 3.3V (Pin 1 or 17) - Safer, direct compatibility
+- **5V (Alternative)**: VDD → Pi 5V (Pin 2 or 4) - Higher drive current, but I2C pull-ups must be 3.3V
 
 ---
 
 ## Relay Board Wiring (Outputs)
 
-### MCP23017 #1 Pin Mapping to Lockers
+### Complete Pin Mapping for 32 Lockers
+
+**Raspberry Pi GPIO Lockers (1-22):**
+
+| Locker ID | GPIO Pin | Physical Pin | Relay Module Input |
+|-----------|----------|--------------|-------------------|
+| 1         | GPIO 4   | Pin 7        | IN1               |
+| 2         | GPIO 5   | Pin 29       | IN2               |
+| 3         | GPIO 6   | Pin 31       | IN3               |
+| 4         | GPIO 12  | Pin 32       | IN4               |
+| 5         | GPIO 13  | Pin 33       | IN5               |
+| 6         | GPIO 16  | Pin 36       | IN6               |
+| 7         | GPIO 17  | Pin 11       | IN7               |
+| 8         | GPIO 18  | Pin 12       | IN8               |
+| 9         | GPIO 19  | Pin 35       | IN9               |
+| 10        | GPIO 20  | Pin 38       | IN10              |
+| 11        | GPIO 21  | Pin 40       | IN11              |
+| 12        | GPIO 22  | Pin 15       | IN12              |
+| 13        | GPIO 23  | Pin 16       | IN13              |
+| 14        | GPIO 24  | Pin 18       | IN14              |
+| 15        | GPIO 25  | Pin 22       | IN15              |
+| 16        | GPIO 26  | Pin 37       | IN16              |
+| 17        | GPIO 27  | Pin 13       | IN17              |
+| 18        | GPIO 2   | Pin 3        | IN18              |
+| 19        | GPIO 3   | Pin 5        | IN19              |
+| 20        | GPIO 14  | Pin 8        | IN20              |
+| 21        | GPIO 15  | Pin 10       | IN21              |
+| 22        | GPIO 8   | Pin 24       | IN22              |
+
+**MCP23017 Lockers (23-32):**
 
 | Locker ID | MCP23017 Pin | Port | Bit | Relay Module Input |
 |-----------|--------------|------|-----|-------------------|
-| 1         | GPA0         | A    | 0   | IN1               |
-| 2         | GPA1         | A    | 1   | IN2               |
-| 3         | GPA2         | A    | 2   | IN3               |
-| 4         | GPA3         | A    | 3   | IN4               |
-| 5         | GPA4         | A    | 4   | IN5               |
-| 6         | GPA5         | A    | 5   | IN6               |
-| 7         | GPA6         | A    | 6   | IN7               |
-| 8         | GPA7         | A    | 7   | IN8               |
-| 9         | GPB0         | B    | 0   | IN9               |
-| 10        | GPB1         | B    | 1   | IN10              |
-| 11        | GPB2         | B    | 2   | IN11              |
-| 12        | GPB3         | B    | 3   | IN12              |
-| 13        | GPB4         | B    | 4   | IN13              |
-| 14        | GPB5         | B    | 5   | IN14              |
-| 15        | GPB6         | B    | 6   | IN15              |
-| 16        | GPB7         | B    | 7   | IN16              |
+| 23        | GPA0         | A    | 0   | IN23              |
+| 24        | GPA1         | A    | 1   | IN24              |
+| 25        | GPA2         | A    | 2   | IN25              |
+| 26        | GPA3         | A    | 3   | IN26              |
+| 27        | GPA4         | A    | 4   | IN27              |
+| 28        | GPA5         | A    | 5   | IN28              |
+| 29        | GPA6         | A    | 6   | IN29              |
+| 30        | GPA7         | A    | 7   | IN30              |
+| 31        | GPB0         | B    | 0   | IN31              |
+| 32        | GPB1         | B    | 1   | IN32              |
 
 ### Relay Module Connections
 
-**Typical 16-Channel Relay Module:**
+**Typical 32-Channel Relay Module (or multiple smaller modules):**
 - **VCC**: Connect to 5V power supply (NOT Pi 5V if using separate PSU)
 - **GND**: Connect to common ground (Pi GND + PSU GND)
-- **IN1-IN16**: Connect to MCP23017 #1 outputs (GPA0-GPB7)
+- **IN1-IN22**: Connect to Raspberry Pi GPIO outputs
+- **IN23-IN32**: Connect to MCP23017 outputs (GPA0-GPA7, GPB0-GPB1)
 
 **Wiring Steps:**
-1. Connect MCP23017 #1 GPA0 → Relay Module IN1
-2. Connect MCP23017 #1 GPA1 → Relay Module IN2
-3. Continue sequentially up to GPB7 → IN16
-4. Use twisted-pair wires for longer runs to reduce EMI
+1. **Pi GPIO Lockers (1-22):**
+   - Connect GPIO 4 → Relay Module IN1
+   - Connect GPIO 5 → Relay Module IN2
+   - Continue sequentially up to GPIO 8 → IN22
+2. **MCP23017 Lockers (23-32):**
+   - Connect MCP23017 GPA0 → Relay Module IN23
+   - Connect MCP23017 GPA1 → Relay Module IN24
+   - Continue sequentially up to GPB1 → IN32
+3. Use twisted-pair wires for longer runs to reduce EMI
+4. Label all connections for easy troubleshooting
 
 **Relay Output to Lock Actuator:**
 - **COM** (Common): Connect to lock actuator positive terminal
@@ -237,9 +351,19 @@ MCP23017 #2:
 - Check your relay board datasheet for active HIGH vs LOW
 - Use appropriate wire gauge for lock actuators (typically 18-22 AWG for low current, 14-16 AWG for high current)
 
-### Example: Locker 1 Complete Wiring
+### Example Wiring
+
+**Locker 1 (Pi GPIO):**
 ```
-MCP23017 #1 GPA0 → Relay Module IN1
+Raspberry Pi GPIO 4 → Relay Module IN1
+Relay Module COM → Lock Actuator Positive
+Relay Module NO → 5V Power Supply Positive
+Lock Actuator Negative → Power Supply Ground
+```
+
+**Locker 23 (MCP23017):**
+```
+MCP23017 GPA0 → Relay Module IN23
 Relay Module COM → Lock Actuator Positive
 Relay Module NO → 5V Power Supply Positive
 Lock Actuator Negative → Power Supply Ground
@@ -249,26 +373,34 @@ Lock Actuator Negative → Power Supply Ground
 
 ## Door Sensor Wiring (Inputs)
 
-### MCP23017 #2 Pin Mapping to Sensors
+### Complete Sensor Pin Mapping for 32 Lockers
+
+**Raspberry Pi GPIO Lockers (1-22):**
+
+| Locker ID | GPIO Pin | Physical Pin | Sensor Connection |
+|-----------|----------|--------------|-------------------|
+| 1         | GPIO 7   | Pin 26       | Sensor 1          |
+| 2         | GPIO 8   | Pin 24       | Sensor 2          |
+| 3         | GPIO 9   | Pin 21       | Sensor 3          |
+| 4         | GPIO 10  | Pin 19       | Sensor 4          |
+| 5         | GPIO 11  | Pin 23       | Sensor 5          |
+| ...       | ...      | ...          | ...               |
+| 22        | GPIO 23  | Pin 16       | Sensor 22         |
+
+**MCP23017 Lockers (23-32):**
 
 | Locker ID | MCP23017 Pin | Port | Bit | Sensor Connection |
 |-----------|--------------|------|-----|-------------------|
-| 1         | GPA0         | A    | 0   | Sensor 1          |
-| 2         | GPA1         | A    | 1   | Sensor 2          |
-| 3         | GPA2         | A    | 2   | Sensor 3          |
-| 4         | GPA3         | A    | 3   | Sensor 4          |
-| 5         | GPA4         | A    | 4   | Sensor 5          |
-| 6         | GPA5         | A    | 5   | Sensor 6          |
-| 7         | GPA6         | A    | 6   | Sensor 7          |
-| 8         | GPA7         | A    | 7   | Sensor 8          |
-| 9         | GPB0         | B    | 0   | Sensor 9          |
-| 10        | GPB1         | B    | 1   | Sensor 10         |
-| 11        | GPB2         | B    | 2   | Sensor 11         |
-| 12        | GPB3         | B    | 3   | Sensor 12         |
-| 13        | GPB4         | B    | 4   | Sensor 13         |
-| 14        | GPB5         | B    | 5   | Sensor 14         |
-| 15        | GPB6         | B    | 6   | Sensor 15         |
-| 16        | GPB7         | B    | 7   | Sensor 16         |
+| 23        | GPB0         | B    | 0   | Sensor 23         |
+| 24        | GPB1         | B    | 1   | Sensor 24         |
+| 25        | GPB2         | B    | 2   | Sensor 25         |
+| 26        | GPB3         | B    | 3   | Sensor 26         |
+| 27        | GPB4         | B    | 4   | Sensor 27         |
+| 28        | GPB5         | B    | 5   | Sensor 28         |
+| 29        | GPB6         | B    | 6   | Sensor 29         |
+| 30        | GPB7         | B    | 7   | Sensor 30         |
+| 31        | GPA0         | A    | 0   | Sensor 31 (if using A port) |
+| 32        | GPA1         | A    | 1   | Sensor 32 (if using A port) |
 
 ### Reed Switch Sensor Wiring
 
@@ -299,11 +431,20 @@ The code inverts the reading: `is_closed = not ((val >> pin) & 1)`
 - If sensor reads `0` (LOW) → door is closed
 - If sensor reads `1` (HIGH) → door is open
 
-### Example: Locker 1 Sensor Wiring
+### Example Sensor Wiring
+
+**Locker 1 (Pi GPIO):**
 ```
-MCP23017 #2 GPA0 → Reed Switch Terminal 1
+Raspberry Pi GPIO 7 → Reed Switch Terminal 1
 Reed Switch Terminal 2 → GND
-10kΩ Resistor: 5V → MCP23017 #2 GPA0 (pull-up)
+Internal Pull-up: 3.3V → GPIO 7 (enabled in code)
+```
+
+**Locker 23 (MCP23017):**
+```
+MCP23017 GPB0 → Reed Switch Terminal 1
+Reed Switch Terminal 2 → GND
+Internal Pull-up: Enabled via GPPUB register
 ```
 
 **For Long Wire Runs:**
@@ -320,17 +461,16 @@ Reed Switch Terminal 2 → GND
 
 | Component | Voltage | Current (per unit) | Total Current |
 |-----------|---------|-------------------|---------------|
-| Raspberry Pi 3 | 5V | ~2.5A (peak) | 2.5A |
-| MCP23017 #1 | 5V | ~1mA | 1mA |
-| MCP23017 #2 | 5V | ~1mA | 1mA |
+| Raspberry Pi 4 | 5V | ~3A (peak) | 3A |
+| MCP23017 | 3.3V or 5V | ~1mA | 1mA |
 | Relay Module (idle) | 5V | ~50mA | 50mA |
-| Relay Module (active) | 5V | ~70mA per relay | ~1.1A (16×) |
-| Lock Actuator | 5V-12V | 100mA-500mA each | 1.6A-8A (16×) |
+| Relay Module (active) | 5V | ~70mA per relay | ~2.2A (32×) |
+| Lock Actuator | 5V-12V | 100mA-500mA each | 3.2A-16A (32×) |
 
 **Total System Current:**
-- **Logic/Control**: ~2.6A (Pi + MCPs + relays)
-- **Lock Actuators**: 1.6A-8A (depends on actuator type)
-- **Recommended PSU**: 5V, 10A+ (or 12V with voltage regulator for actuators)
+- **Logic/Control**: ~3.1A (Pi + MCP + relays)
+- **Lock Actuators**: 3.2A-16A (depends on actuator type)
+- **Recommended PSU**: 5V, 15A+ (or 12V with voltage regulator for actuators)
 
 ### Power Supply Setup
 
@@ -383,48 +523,58 @@ All GNDs connected together (common ground)
 ### Text-Based Diagram
 
 ```
-                    Raspberry Pi 3
+                    Raspberry Pi 4
                          │
         ┌────────────────┼────────────────┐
         │                │                │
-     Pin 3            Pin 5           Pin 2/4
-     (SDA)           (SCL)            (5V)
+     GPIO Pins        I2C Bus          Power
+   (22 lockers)    (SDA/SCL)         (5V/3.3V)
         │                │                │
-        └────────┬───────┴────────┬───────┘
-                 │                │
-        ┌────────▼────────┐ ┌─────▼─────────┐
-        │  MCP23017 #1    │ │  MCP23017 #2   │
-        │  Address: 0x20  │ │  Address: 0x21│
-        │  (RELAYS)       │ │  (SENSORS)     │
-        └────────┬────────┘ └─────┬─────────┘
-                 │                │
-    ┌────────────┼────────────┐   │
-    │            │            │   │
-GPA0-GPA7    GPB0-GPB7    GND │   │
-    │            │            │   │
-    │            │            │   │
-┌───▼────────────▼────────────▼───▼───┐
-│     16-Channel Relay Module         │
-│  IN1-IN16 ← MCP23017 #1 outputs    │
-│  VCC ← 5V PSU                       │
-│  GND ← Common Ground                │
-└───┬─────────────────────────────────┘
-    │
-    │ (Relay Contacts: COM/NO)
-    │
-┌───▼─────────────────────────────────┐
-│     16 Lock Actuators              │
-│  (Solenoids/Magnetic Locks)        │
-└────────────────────────────────────┘
+        │                │                │
+    ┌───▼────────────┐   │                │
+    │ 22 GPIO Pins   │   │                │
+    │ (Lockers 1-22) │   │                │
+    │                │   │                │
+    │ Outputs:       │   │                │
+    │ GPIO 4,5,6...  │   │                │
+    │                │   │                │
+    │ Inputs:        │   │                │
+    │ GPIO 7,8,9...  │   │                │
+    └───┬────────────┘   │                │
+        │                │                │
+        │            ┌───▼────────────┐   │
+        │            │  MCP23017      │   │
+        │            │  Address:0x20 │   │
+        │            │  (Lockers 23-32)│   │
+        │            │                │   │
+        │            │ Port A: Relays │   │
+        │            │ Port B: Sensors│   │
+        │            └───┬────────────┘   │
+        │                │                │
+    ┌───┴────────────────┴────────────────┴───┐
+    │      32-Channel Relay Module             │
+    │  IN1-IN22 ← Pi GPIO outputs             │
+    │  IN23-IN32 ← MCP23017 outputs           │
+    │  VCC ← 5V PSU                           │
+    │  GND ← Common Ground                    │
+    └───┬─────────────────────────────────────┘
+        │
+        │ (Relay Contacts: COM/NO)
+        │
+    ┌───▼─────────────────────────────────────┐
+    │     32 Lock Actuators                   │
+    │  (Solenoids/Magnetic Locks)             │
+    └─────────────────────────────────────────┘
 
-        MCP23017 #2 Inputs
-        GPA0-GPA7, GPB0-GPB7
+    Sensor Inputs (32 total)
+    ├── Pi GPIO Sensors (Lockers 1-22)
+    └── MCP23017 Sensors (Lockers 23-32)
                  │
         ┌────────┼────────┐
         │        │        │
     ┌───▼───┐ ┌──▼───┐ ┌──▼───┐
     │Sensor │ │Sensor│ │Sensor│
-    │   1   │ │  2   │ │ ...  │
+    │   1   │ │  2   │ │ ...32│
     └───────┘ └──────┘ └──────┘
     (Reed Switches)
 ```
@@ -433,14 +583,16 @@ GPA0-GPA7    GPB0-GPB7    GND │   │
 
 | From | To | Wire Count | Notes |
 |------|----|-----------|-------|
-| Pi Pin 3 | MCP #1 SDA, MCP #2 SDA | 1 (shared) | I2C data line |
-| Pi Pin 5 | MCP #1 SCL, MCP #2 SCL | 1 (shared) | I2C clock line |
-| Pi Pin 2/4 | MCP #1 VDD, MCP #2 VDD | 1 (shared) | 5V power |
+| Pi GPIO 4-8, 12-27, 2-3, 14-15 | Relay IN1-IN22 | 22 | Pi GPIO relay control |
+| Pi GPIO 7-11, 14-15, 2-6, 12-13, 16-23 | Sensors 1-22 | 22 | Pi GPIO sensor inputs |
+| Pi Pin 3 | MCP SDA | 1 | I2C data line |
+| Pi Pin 5 | MCP SCL | 1 | I2C clock line |
+| Pi Pin 1/17 | MCP VDD | 1 | 3.3V power (recommended) |
 | Pi Pin 6 | All GNDs | Multiple | Common ground |
-| MCP #1 GPA0-GPB7 | Relay IN1-IN16 | 16 | Relay control |
-| Relay COM/NO | Lock Actuators | 16×2 | Power to locks |
-| MCP #2 GPA0-GPB7 | Sensors | 16 | Door sensors |
-| Sensors | GND | 16 | Sensor return |
+| MCP GPA0-GPA7, GPB0-GPB1 | Relay IN23-IN32 | 10 | MCP relay control |
+| MCP GPB0-GPB7 | Sensors 23-32 | 8-10 | MCP sensor inputs |
+| Relay COM/NO | Lock Actuators | 32×2 | Power to locks |
+| Sensors | GND | 32 | Sensor return |
 | 5V PSU | Relay VCC, Lock Actuators | Multiple | High current power |
 
 ---
@@ -468,13 +620,38 @@ sudo i2cdetect -y 1
      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
 00:                         -- -- -- -- -- -- -- --
 10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-20: 20 21 -- -- -- -- -- -- -- -- -- -- -- -- -- --
+20: 20 -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 ```
 
-You should see **20** and **21** in the grid.
+You should see **20** in the grid (only one MCP23017 chip for lockers 23-32).
 
-### Step 2: Test MCP23017 Outputs (Relays)
+### Step 2: Test Raspberry Pi GPIOs
+
+**Using Python:**
+```python
+import RPi.GPIO as GPIO
+import time
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+# Test GPIO 4 (Locker 1 output)
+GPIO.setup(4, GPIO.OUT)
+GPIO.output(4, GPIO.HIGH)
+time.sleep(1)
+GPIO.output(4, GPIO.LOW)
+print("GPIO 4 test complete")
+
+# Test GPIO 7 (Locker 1 sensor input)
+GPIO.setup(7, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+state = GPIO.input(7)
+print(f"GPIO 7 sensor state: {state} (0=closed, 1=open)")
+```
+
+**Listen for relay click** - you should hear an audible "click" when the relay activates.
+
+### Step 3: Test MCP23017 (Lockers 23-32)
 
 **Using Python:**
 ```python
@@ -482,38 +659,25 @@ import smbus
 import time
 
 bus = smbus.SMBus(1)
-addr = 0x20  # MCP23017 #1
+addr = 0x20  # MCP23017
 
-# Configure all pins as outputs
+# Configure Port A as outputs (relays)
 bus.write_byte_data(addr, 0x00, 0x00)  # IODIRA = all outputs
-bus.write_byte_data(addr, 0x01, 0x00)  # IODIRB = all outputs
+bus.write_byte_data(addr, 0x12, 0x00)  # GPIOA = all low
 
-# Turn on relay 1 (GPA0)
+# Configure Port B as inputs (sensors) with pull-ups
+bus.write_byte_data(addr, 0x01, 0xFF)  # IODIRB = all inputs
+bus.write_byte_data(addr, 0x0D, 0xFF)  # GPPUB = enable pull-ups
+
+# Test relay (Locker 23 = GPA0)
 bus.write_byte_data(addr, 0x12, 0x01)  # GPIOA = bit 0 high
 time.sleep(1)
-# Turn off relay 1
 bus.write_byte_data(addr, 0x12, 0x00)  # GPIOA = bit 0 low
-```
 
-**Listen for relay click** - you should hear an audible "click" when the relay activates.
-
-### Step 3: Test MCP23017 Inputs (Sensors)
-
-**Using Python:**
-```python
-import smbus
-
-bus = smbus.SMBus(1)
-addr = 0x21  # MCP23017 #2
-
-# Configure all pins as inputs
-bus.write_byte_data(addr, 0x00, 0xFF)  # IODIRA = all inputs
-bus.write_byte_data(addr, 0x01, 0xFF)  # IODIRB = all inputs
-
-# Read sensor 1 (GPA0)
-val = bus.read_byte_data(addr, 0x12)  # Read GPIOA
-sensor1 = (val >> 0) & 1
-print(f"Sensor 1 state: {sensor1} (1=open, 0=closed)")
+# Test sensor (Locker 23 = GPB0)
+val = bus.read_byte_data(addr, 0x13)  # Read GPIOB
+sensor = (val >> 0) & 1
+print(f"Locker 23 sensor state: {sensor} (0=closed, 1=open)")
 ```
 
 **Manually open/close door** and verify the reading changes.
@@ -528,13 +692,17 @@ python3 app.py
 
 **Test flow:**
 1. Open browser to `http://localhost:5000`
-2. Login as delivery (PIN: check `routes.py`)
-3. Click a locker button
+2. Login as delivery (PIN: check `routes.py` or default: 1234)
+3. Click a locker button (test both Pi GPIO and MCP lockers)
 4. Verify:
    - Relay clicks
    - Lock actuator activates
    - OTP displays
    - Door sensor updates when door closes
+5. Test configuration page: `http://localhost:5000/configuration`
+   - Assign lockers to Pi GPIO or MCP
+   - Set special codes
+   - Verify changes take effect
 
 ### Step 5: Continuity & Short Testing
 
@@ -606,6 +774,54 @@ python3 app.py
 
 ---
 
+## Configuration System
+
+The system includes a web-based configuration interface to assign lockers to hardware.
+
+### Accessing Configuration
+
+1. Navigate to: `http://[PI_IP]:5000/configuration`
+2. Or click the "Configuration" button on the home page
+
+### Configuration Options
+
+For each locker (1-32), you can configure:
+
+1. **Hardware Type:**
+   - **Raspberry Pi GPIO**: Uses direct Pi GPIO pins
+   - **MCP23017**: Uses the I2C expander chip
+
+2. **GPIO Pin:**
+   - For Pi GPIO lockers: Specify which GPIO pin to use (e.g., 4, 5, 6, etc.)
+   - For MCP lockers: Specify MCP pin index (0-9)
+
+3. **Sensor Pin:**
+   - For Pi GPIO lockers: Specify which GPIO pin for the sensor input
+   - For MCP lockers: Usually same as relay pin or different Port B pin
+
+4. **Special Code:**
+   - Set a permanent access code for this locker
+   - Works alongside OTP codes for customer pickup
+   - Useful for maintenance or special access
+
+### Default Configuration
+
+- **Lockers 1-22**: Raspberry Pi GPIO
+  - Relay outputs: GPIO 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 14, 15, 8
+  - Sensor inputs: GPIO 7, 8, 9, 10, 11, 14, 15, 2, 3, 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23
+
+- **Lockers 23-32**: MCP23017
+  - Relay outputs: Port A (GPA0-GPA7) + Port B (GPB0-GPB1)
+  - Sensor inputs: Port B (GPB0-GPB7)
+
+### After Configuration Changes
+
+1. Save the configuration
+2. The system will automatically reload hardware settings
+3. Restart the service if needed: `sudo systemctl restart smartlocker.service`
+
+---
+
 ## Safety Reminders
 
 ⚠️ **CRITICAL SAFETY WARNINGS:**
@@ -616,7 +832,8 @@ python3 app.py
 4. **Never mix AC and DC** in the same wire bundle
 5. **Verify polarity** on all power connections
 6. **Test with multimeter** before connecting to Pi
-7. **Start with one locker** - verify it works before wiring all 16
+7. **Start with one locker** - verify it works before wiring all 32
+8. **Use the configuration page** - assign lockers to hardware as you wire them
 8. **Document your wiring** - label every wire and connection
 9. **Use proper wire gauge** - undersized wires can overheat
 10. **Keep wiring organized** - use cable management, labels, and color coding
@@ -632,6 +849,13 @@ python3 app.py
 
 ---
 
-**Last Updated**: 2025-11-28  
-**Version**: 1.0
+**Last Updated**: 2025-12-04  
+**Version**: 2.0
+
+**Changes in v2.0:**
+- Updated for hybrid hardware system (32 lockers)
+- Added Raspberry Pi GPIO wiring (22 lockers)
+- Updated MCP23017 setup (10 lockers instead of 16)
+- Added configuration system documentation
+- Updated power requirements for 32 lockers
 

@@ -204,42 +204,45 @@ class HybridHardware(HardwareInterface):
                 self.GPPUB = 0x0D  # Pull-up register B
                 
                 # Wait a bit for I2C bus to stabilize
-                time.sleep(0.2)
+                time.sleep(0.3)
                 
-                # Quick test: Try to read from MCP23017 to verify it's connected
-                # Retry a few times in case of timing issues
+                # Test MCP23017 communication using write-then-read approach
+                # This is more reliable than reading immediately
                 mcp_working = False
-                for attempt in range(5):  # More retries
+                for attempt in range(8):  # More retries
                     try:
-                        # First try a simple write (like i2cdetect does) - write_quick is gentler
-                        # This is less likely to timeout than a read
-                        try:
-                            self.mcp_bus.write_quick(self.mcp_addr)
-                        except AttributeError:
-                            # write_quick not available, try writing to a register instead
-                            self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRA, 0xFF)
-                        time.sleep(0.05)
+                        # Step 1: Write to IODIRA register (set all to inputs = 0xFF)
+                        # This "wakes up" the device and is less likely to timeout
+                        self.mcp_bus.write_byte_data(self.mcp_addr, self.IODIRA, 0xFF)
+                        time.sleep(0.1)  # Give device time to process
                         
-                        # Now try reading IODIRA register (should return 0xFF by default for inputs)
+                        # Step 2: Read back IODIRA to verify communication works
                         test_read = self.mcp_bus.read_byte_data(self.mcp_addr, self.IODIRA)
+                        
+                        # If we get here, communication is working!
                         mcp_working = True
                         print(f"[HybridHardware] MCP23017 detected at address 0x{self.mcp_addr:x} (IODIRA=0x{test_read:02x})")
                         break
                     except (OSError, IOError) as e:
+                        err_code = e.errno if hasattr(e, 'errno') else None
                         err_msg = str(e)
-                        if attempt < 4:
-                            wait_time = 0.1 * (attempt + 1)  # Increasing wait time
+                        
+                        if attempt < 7:
+                            # Exponential backoff: wait longer each time
+                            wait_time = 0.15 * (attempt + 1)
                             time.sleep(wait_time)
                             continue
                         else:
+                            # Final attempt failed
                             print(f"[HybridHardware] MCP23017 not responding at address 0x{self.mcp_addr:x}")
-                            print(f"[HybridHardware] Error: {err_msg}")
+                            print(f"[HybridHardware] Error: {err_msg} (errno: {err_code})")
                             print("[HybridHardware] Continuing with Pi GPIO only. MCP lockers will not work.")
                             print("[HybridHardware] Troubleshooting:")
                             print("  - Verify MCP23017 is powered (check VDD pin)")
                             print("  - Check I2C pull-up resistors (4.7kΩ on SDA/SCL to 3.3V)")
                             print("  - Verify SDA/SCL connections (Pi pins 3 and 5)")
                             print("  - Check RESET pin is HIGH (connected to 3.3V or 5V)")
+                            print("  - Try: sudo i2cget -y 1 0x20 0x00  (to test manual communication)")
                             self.mcp_bus = None
                             self.mcp_addr = None
                 

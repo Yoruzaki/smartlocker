@@ -87,8 +87,6 @@ body[dir="rtl"] {
     right: 20px;
     /* LTR default */
     z-index: 100;
-    display: flex;
-    gap: 10px;
 }
 
 body[dir="rtl"] .lang-switch {
@@ -160,10 +158,11 @@ body[dir="rtl"] .lang-switch {
 /* Home Page */
 .home-menu {
     display: flex;
-    gap: 40px;
+    gap: 30px;
     justify-content: center;
     align-items: center;
     height: 100%;
+    flex-wrap: wrap;
 }
 
 .big-btn {
@@ -173,20 +172,6 @@ body[dir="rtl"] .lang-switch {
     flex-direction: column;
     gap: 20px;
     border-radius: 30px;
-    text-decoration: none;
-    transition: all 0.3s ease;
-}
-
-.big-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-}
-
-.home-icon {
-    font-size: 5rem;
-    display: block;
-    line-height: 1;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
 /* Keypad */
@@ -244,18 +229,17 @@ body[dir="rtl"] .lang-switch {
     align-items: center;
     margin-bottom: 20px;
     padding: 0 20px;
-    position: relative;
-    z-index: 200;
-    margin-top: 60px;
 }
 
 .locker-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(4, 1fr);
-    gap: 15px;
+    gap: 10px;
     flex-grow: 1;
     padding: 10px;
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
 }
 
 .locker-btn {
@@ -372,10 +356,11 @@ body[dir="rtl"] .lang-switch {
 /* Home Page */
 .home-menu {
     display: flex;
-    gap: 40px;
+    gap: 30px;
     justify-content: center;
     align-items: center;
     height: 100%;
+    flex-wrap: wrap;
 }
 
 .big-btn {
@@ -385,20 +370,6 @@ body[dir="rtl"] .lang-switch {
     flex-direction: column;
     gap: 20px;
     border-radius: 30px;
-    text-decoration: none;
-    transition: all 0.3s ease;
-}
-
-.big-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-}
-
-.home-icon {
-    font-size: 5rem;
-    display: block;
-    line-height: 1;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
 /* Keypad */
@@ -456,18 +427,17 @@ body[dir="rtl"] .lang-switch {
     align-items: center;
     margin-bottom: 20px;
     padding: 0 20px;
-    position: relative;
-    z-index: 200;
-    margin-top: 60px;
 }
 
 .locker-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(4, 1fr);
-    gap: 15px;
+    gap: 10px;
     flex-grow: 1;
     padding: 10px;
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
 }
 
 .locker-btn {

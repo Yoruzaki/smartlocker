@@ -19,6 +19,10 @@ def init_db():
             is_occupied BOOLEAN DEFAULT 0,
             door_closed BOOLEAN DEFAULT 1,
             otp_code TEXT,
+            hardware_type TEXT DEFAULT 'pi',
+            gpio_pin INTEGER,
+            sensor_pin INTEGER,
+            special_code TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -45,12 +49,28 @@ def init_db():
         )
     ''')
 
-    # Initialize 16 lockers if they don't exist
+    # Initialize 32 lockers if they don't exist
     cursor.execute('SELECT count(*) FROM lockers')
     if cursor.fetchone()[0] == 0:
-        for i in range(1, 17):
-            cursor.execute('INSERT INTO lockers (id, is_occupied, door_closed) VALUES (?, 0, 1)', (i,))
-        print("Initialized 16 lockers.")
+        # Default: lockers 1-22 use Pi GPIO, 23-32 use MCP
+        pi_gpios = [4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 2, 3, 14, 15, 8]
+        pi_sensors = [7, 8, 9, 10, 11, 14, 15, 2, 3, 4, 5, 6, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23]
+        
+        for i in range(1, 33):
+            if i <= 22:
+                # Pi GPIO lockers
+                gpio_pin = pi_gpios[i-1] if i-1 < len(pi_gpios) else 4
+                sensor_pin = pi_sensors[i-1] if i-1 < len(pi_sensors) else 7
+                cursor.execute('''INSERT INTO lockers 
+                    (id, is_occupied, door_closed, hardware_type, gpio_pin, sensor_pin) 
+                    VALUES (?, 0, 1, 'pi', ?, ?)''', (i, gpio_pin, sensor_pin))
+            else:
+                # MCP lockers
+                mcp_pin = i - 23
+                cursor.execute('''INSERT INTO lockers 
+                    (id, is_occupied, door_closed, hardware_type, gpio_pin) 
+                    VALUES (?, 0, 1, 'mcp', ?)''', (i, mcp_pin))
+        print("Initialized 32 lockers.")
 
     # Initialize default delivery user if not exists
     cursor.execute('SELECT count(*) FROM delivery_users')

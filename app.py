@@ -12,8 +12,8 @@ app.secret_key = 'supersecretkey' # Change for production
 TRANSLATIONS = {
     'fr': {
         'title': 'Système de Casier Intelligent',
-        'delivery': 'Livreur',
-        'pickup': 'Client',
+        'delivery': 'Retirer',
+        'pickup': 'Récupérer',
         'login_title': 'Connexion Livreur',
         'enter_pin': 'Entrez le PIN',
         'back': 'Retour',
@@ -35,12 +35,17 @@ TRANSLATIONS = {
         'locker_not_found': 'Casier introuvable',
         'request_failed': 'Échec de la requête',
         'confirm_open': 'Ouvrir le casier',
-        'already_occupied': 'Ce casier est déjà occupé !'
+        'already_occupied': 'Ce casier est déjà occupé !',
+        'configuration': 'Configuration',
+        'locker_config': 'Configuration des Casiers',
+        'special_code': 'Code Spécial',
+        'save': 'Enregistrer',
+        'cancel': 'Annuler'
     },
     'ar': {
         'title': 'نظام الخزائن الذكية',
-        'delivery': 'مندوب',
-        'pickup': 'عميل',
+        'delivery': 'سحب',
+        'pickup': 'استلام',
         'login_title': 'تسجيل دخول المندوب',
         'enter_pin': 'أدخل الرمز السري',
         'back': 'رجوع',
@@ -62,7 +67,12 @@ TRANSLATIONS = {
         'locker_not_found': 'الخزانة غير موجودة',
         'request_failed': 'فشل الطلب',
         'confirm_open': 'فتح الخزانة',
-        'already_occupied': 'هذه الخزانة مشغولة بالفعل!'
+        'already_occupied': 'هذه الخزانة مشغولة بالفعل!',
+        'configuration': 'الإعدادات',
+        'locker_config': 'إعداد الخزائن',
+        'special_code': 'رمز خاص',
+        'save': 'حفظ',
+        'cancel': 'إلغاء'
     }
 }
 
@@ -71,11 +81,34 @@ def inject_conf_var():
     lang = session.get('lang', 'fr')
     return dict(lang=lang, t=TRANSLATIONS, dir='rtl' if lang == 'ar' else 'ltr')
 
-# Initialize Hardware
-hardware = get_hardware(use_mock=USE_MOCK_HARDWARE)
-
 # Initialize Database
 init_db()
+
+# Load locker configuration from database
+def load_locker_config():
+    from database import get_db_connection
+    conn = get_db_connection()
+    lockers = conn.execute('SELECT id, hardware_type, gpio_pin, sensor_pin FROM lockers').fetchall()
+    conn.close()
+    
+    config = {}
+    for locker in lockers:
+        locker_id = locker['id']
+        hw_type = locker['hardware_type'] or 'pi'
+        gpio_pin = locker['gpio_pin']
+        sensor_pin = locker.get('sensor_pin')
+        
+        config[locker_id] = {
+            'type': hw_type,
+            'pin': gpio_pin or 4,
+            'sensor_pin': sensor_pin
+        }
+    
+    return config
+
+# Initialize Hardware with configuration
+locker_config = load_locker_config() if not USE_MOCK_HARDWARE else None
+hardware = get_hardware(use_mock=USE_MOCK_HARDWARE, locker_config=locker_config)
 
 # Import routes after app initialization to avoid circular imports
 from routes import *

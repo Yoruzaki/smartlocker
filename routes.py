@@ -68,7 +68,7 @@ def delivery_login():
 @app.route('/delivery/dashboard')
 def delivery_dashboard():
     conn = get_db_connection()
-    lockers = conn.execute('SELECT * FROM lockers').fetchall()
+    lockers = conn.execute('SELECT * FROM lockers ORDER BY id').fetchall()
     conn.close()
     
     # Sync with hardware state (optional, but good for consistency)
@@ -77,16 +77,67 @@ def delivery_dashboard():
     
     return render_template('delivery_dashboard.html', lockers=lockers, hw_states=hw_states)
 
+@app.route('/configuration', methods=['GET', 'POST'])
+def configuration():
+    conn = get_db_connection()
+    
+    if request.method == 'POST':
+        # Update locker configurations
+        for locker_id in range(1, 33):
+            hw_type = request.form.get(f'hw_type_{locker_id}', 'pi')
+            gpio_pin = request.form.get(f'gpio_pin_{locker_id}')
+            sensor_pin = request.form.get(f'sensor_pin_{locker_id}')
+            special_code = request.form.get(f'special_code_{locker_id}', '').strip()
+            
+            try:
+                gpio_pin = int(gpio_pin) if gpio_pin else None
+                sensor_pin = int(sensor_pin) if sensor_pin else None
+            except:
+                gpio_pin = None
+                sensor_pin = None
+            
+            conn.execute('''UPDATE lockers 
+                SET hardware_type = ?, gpio_pin = ?, sensor_pin = ?, special_code = ?
+                WHERE id = ?''', 
+                (hw_type, gpio_pin, sensor_pin, special_code or None, locker_id))
+        
+        conn.commit()
+        conn.close()
+        
+        # Reload hardware configuration
+        from app import load_locker_config, USE_MOCK_HARDWARE
+        from hardware import HybridHardware
+        import app as app_module
+        if not USE_MOCK_HARDWARE:
+            try:
+                new_config = load_locker_config()
+                app_module.hardware = HybridHardware(locker_config=new_config)
+                hardware = app_module.hardware
+            except Exception as e:
+                print(f"Failed to reload hardware: {e}")
+        
+        flash('Configuration saved successfully', 'success')
+        return redirect(url_for('configuration'))
+    
+    lockers = conn.execute('SELECT * FROM lockers ORDER BY id').fetchall()
+    conn.close()
+    return render_template('configuration.html', lockers=lockers)
+
 @app.route('/customer/pickup', methods=['GET', 'POST'])
 def customer_pickup():
     if request.method == 'POST':
-        otp = request.form.get('otp')
+        code = request.form.get('otp', '').strip()
         conn = get_db_connection()
-        # Find locker with this OTP
-        locker = conn.execute('SELECT * FROM lockers WHERE otp_code = ?', (otp,)).fetchone()
+        
+        # First try OTP code
+        locker = conn.execute('SELECT * FROM lockers WHERE otp_code = ?', (code,)).fetchone()
+        
+        # If not found, try special code
+        if not locker:
+            locker = conn.execute('SELECT * FROM lockers WHERE special_code = ?', (code,)).fetchone()
         
         if locker:
-            # Valid OTP
+            # Valid code (OTP or special)
             locker_id = locker['id']
             
             # Open Locker
@@ -98,16 +149,18 @@ def customer_pickup():
             # Let's mark it empty now to prevent reuse of OTP immediately.
             update_locker_status(locker_id, is_occupied=0, otp_code=None)
             
-            # Log OTP usage
-            conn.execute('INSERT INTO otp_codes (locker_id, code, used, expires_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)', 
-                         (locker_id, otp))
-            conn.commit()
+            # Log code usage (only if it was an OTP, not special code)
+            if locker.get('otp_code') == code:
+                conn.execute('INSERT INTO otp_codes (locker_id, code, used, expires_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)', 
+                             (locker_id, code))
+                conn.commit()
+            
             conn.close()
             
-            return render_template('status.html', message_key='locker_opened', sub_message_key='take_package', locker_id=locker_id)
+            return render_template('status.html', message='Locker Opened!', sub_message='Please take your package and close the door.', locker_id=locker_id)
         else:
             conn.close()
-            flash('Invalid OTP', 'error')
+            flash('Invalid Code', 'error')
             
     return render_template('customer_otp.html')
 
